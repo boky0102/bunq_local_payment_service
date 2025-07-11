@@ -5,22 +5,26 @@
     "jsr:@oak/oak@*": "17.1.5",
     "jsr:@oak/oak@^17.1.5": "17.1.5",
     "jsr:@std/assert@1": "1.0.13",
+    "jsr:@std/assert@^1.0.13": "1.0.13",
     "jsr:@std/bytes@1": "1.0.6",
     "jsr:@std/crypto@1": "1.0.5",
     "jsr:@std/encoding@1": "1.0.10",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
     "jsr:@std/http@1": "1.0.19",
     "jsr:@std/internal@^1.0.6": "1.0.9",
+    "jsr:@std/internal@^1.0.8": "1.0.9",
     "jsr:@std/internal@^1.0.9": "1.0.9",
     "jsr:@std/media-types@1": "1.1.0",
     "jsr:@std/path@1": "1.1.1",
+    "jsr:@std/testing@*": "1.0.14",
+    "npm:@types/node@*": "22.15.15",
     "npm:path-to-regexp@^6.3.0": "6.3.0"
   },
   "jsr": {
     "@oak/commons@1.0.1": {
       "integrity": "889ff210f0b4292591721be07244ecb1b5c118742f5273c70cf30d7cd4184d0c",
       "dependencies": [
-        "jsr:@std/assert",
+        "jsr:@std/assert@1",
         "jsr:@std/bytes",
         "jsr:@std/crypto",
         "jsr:@std/encoding@1",
@@ -32,7 +36,7 @@
       "integrity": "676263340dcfd069fb422b4274b4f75f7048a68e605dece6a2897ccfe669e7cc",
       "dependencies": [
         "jsr:@oak/commons",
-        "jsr:@std/assert",
+        "jsr:@std/assert@1",
         "jsr:@std/bytes",
         "jsr:@std/http",
         "jsr:@std/media-types",
@@ -72,11 +76,27 @@
       "dependencies": [
         "jsr:@std/internal@^1.0.9"
       ]
+    },
+    "@std/testing@1.0.14": {
+      "integrity": "144b3737105b9071cb50c957681f58a1b8ec0f3e5b19ad830f401c5fa931e8f0",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.13",
+        "jsr:@std/internal@^1.0.8"
+      ]
     }
   },
   "npm": {
+    "@types/node@22.15.15": {
+      "integrity": "sha512-R5muMcZob3/Jjchn5LcO8jdKwSCbzqmPB6ruBxMcf9kbxtniZHP327s6C37iOfuw8mbKK3cAQa7sEl7afLrQ8A==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
     "path-to-regexp@6.3.0": {
       "integrity": "sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ=="
+    },
+    "undici-types@6.21.0": {
+      "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="
     }
   },
   "workspace": {

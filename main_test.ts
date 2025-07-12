@@ -4,9 +4,10 @@ import { CreateApplication, CreateRouter, StartApplication } from "./main.ts";
 import { readTmpFile } from "./utility/utility.ts";
 import { Router } from "@oak/oak/router";
 import { Application } from "@oak/oak/application";
+import { KeyManager } from "./key_manager.ts";
+import { BunqConnector } from "./bunq_connector.ts";
 
 describe("Application", () => {
-
     let router: Router;
     let app: Application;
     let abortController: AbortController;
@@ -23,7 +24,7 @@ describe("Application", () => {
         assertEquals(true, savedPort.length >= 4);
     })
 
-    it("Should create key pairs if they don't exist", async() => {
+    it("Should create key pairs if they don't exist", async () => {
 
     })
 
@@ -35,3 +36,12 @@ describe("Application", () => {
        abortController.abort();
    })
 });
+
+describe("Bunq Connector", () => {
+    beforeAll(async () => {
+        const keyManager = new KeyManager();
+        const { privateKey, publicKey} = await keyManager.GetKeys();
+        const bunqConnector = new BunqConnector(publicKey, privateKey);
+        await bunqConnector.EstablishConnection();
+    })
+})

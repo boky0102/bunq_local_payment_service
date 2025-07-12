@@ -15,3 +15,5 @@ export async function readTmpFile(fileName: string) :Promise<string>{
         const content = await Deno.readTextFile(`/tmp/${fileName}`);
         return content;
 }
+
+/* TODO : add function to get the ip address of the host */

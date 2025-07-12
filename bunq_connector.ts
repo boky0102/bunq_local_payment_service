@@ -6,24 +6,24 @@ import { BunqInstallResponse, SessionData } from "./bunq.types.d.ts";
 import { log } from "./utility/logger.ts";
 import { Token } from "npm:path-to-regexp@^6.3.0";
 import { IKeyManager } from "./key_manager.ts";
+import { LoadEnvVariables  } from "./utility/utility.ts";
 
-type EnvVriables = {
-    BUNQ_API_KEY: string,
-    BUNQ_URL: string,
-    IP_ADDRESS: string,
-    MONETARY_ACCOUNT_NUMBER: number | undefined
-}
 
 export class BunqConnector {
     constructor(keyManger: IKeyManager){
         this.m_keyManger = keyManger;
         this.m_devicePosted = false;
-        this.LoadEnvVariables();
     }
 
-    public EstablishConnection = async () => {
+    /*
+        Establish connection with the bunq server if the connection
+        is established properly it will return array with two elements.
+        Returning array consists of token and user data. In the case of failure it will
+        throw
+    */
+    public EstablishConnection = async () : Promise<[UserPerson | undefined, Token | undefined]> => {
         if(this.ConnectionEstablished()){
-            return [this.m_sessionToken, this.m_userData];
+            return [this.m_userData, this.m_sessionToken];
         }
 
         const { privateKey, publicKey } = await this.m_keyManger.GetKeys();
@@ -36,7 +36,7 @@ export class BunqConnector {
     }
 
     public ConnectionEstablished = () => {
-        return this.m_sessionToken && this.m_userData
+        return this.m_userData && this.m_sessionToken
     }
 
     /*
@@ -46,7 +46,7 @@ export class BunqConnector {
         This operation needs to be done only once.
     */
     private CreateInstallation = async () => {
-        const { BUNQ_URL } = this.LoadEnvVariables();
+        const { BUNQ_URL } = LoadEnvVariables();
 
         log.info("Checking if installation data exists.");
         if(this.m_installationData !== undefined){
@@ -87,34 +87,6 @@ export class BunqConnector {
         return await this.GetSessionToken();
     }
 
-    private LoadEnvVariables = () : EnvVriables => {
-        log.info("Trying to load env variables");
-        const bunqKey = Deno.env.get("BUNQ_API_KEY");
-        const localIp = Deno.env.get("IP_ADDRESS");
-        const bunqUrl = Deno.env.get("BUNQ_URL");
-        const monetaryAccountNumber = Deno.env.get("MONETARY_ACCOUNT_ID");
-
-        let accountId = undefined;
-        if(monetaryAccountNumber){
-            accountId = parseInt(monetaryAccountNumber);
-        }
-
-        if(!bunqKey || !localIp || !bunqUrl){
-            log.error("Env variables aren't set up properly");
-            console.log("bunq key", bunqKey);
-            console.log("bunq url", bunqUrl);
-            console.log("ip add", localIp);
-            throw new Error("Env variables");
-        }
-
-        return {
-            BUNQ_API_KEY: bunqKey,
-            BUNQ_URL: bunqUrl,
-            IP_ADDRESS: localIp,
-            MONETARY_ACCOUNT_NUMBER: accountId
-        }
-    }
-
     private PostInstallationData = async (bunqUrl: string) => {
         const data = {
             client_public_key: this.m_publicKey,
@@ -146,7 +118,7 @@ export class BunqConnector {
         }
 
         log.info("Creating post device request");
-        const { BUNQ_API_KEY, IP_ADDRESS, BUNQ_URL } = this.LoadEnvVariables();
+        const { BUNQ_API_KEY, IP_ADDRESS, BUNQ_URL } = LoadEnvVariables();
         const data = JSON.stringify({
             description: "bla",
             secret: BUNQ_API_KEY,
@@ -186,17 +158,17 @@ export class BunqConnector {
             })
     }
 
-    private GetSessionToken = async () :Promise<[Token, UserPerson]> => {
+    private GetSessionToken = async () :Promise<[UserPerson, Token]> => {
         if(this.m_sessionToken && this.m_userData){
             log.info("User data and session token already exist, no need to fetch");
-            return [this.m_sessionToken, this.m_userData]
+            return [this.m_userData, this.m_sessionToken]
         }
 
         if(!this.m_installationData){
             throw new Error("Cannot make a session token request without the installation data");
         }
 
-        const { BUNQ_API_KEY, BUNQ_URL } = this.LoadEnvVariables();
+        const { BUNQ_API_KEY, BUNQ_URL } = LoadEnvVariables();
 
         const postBody = JSON.stringify({
             secret: BUNQ_API_KEY
@@ -221,9 +193,9 @@ export class BunqConnector {
 
         log.success("Successfully established session with the bunq server");
         const responseData = (await response.json()) as SessionData;
-        const [ , token, userData] = responseData.Response;
+        const [_, token, userData] = responseData.Response;
 
-        return [token.Token.token, userData.UserPerson]
+        return [userData.UserPerson, token.Token.token];
     }
 
     private m_keyManger: IKeyManager;

@@ -6,6 +6,8 @@ import { Router } from "@oak/oak/router";
 import { Application } from "@oak/oak/application";
 import { KeyManager } from "./key_manager.ts";
 import { BunqConnector } from "./bunq_connector.ts";
+import { InMemoryStoreObject } from "./datastore.ts";
+import { Fetcher } from "./fetcher.ts";
 
 describe("Application", () => {
     let router: Router;
@@ -41,6 +43,9 @@ describe("Bunq Connector", () => {
     beforeAll(async () => {
         const keyManager = new KeyManager();
         const bunqConnector = new BunqConnector(keyManager);
-        await bunqConnector.EstablishConnection();
+        const dataStore = new InMemoryStoreObject();
+        const fetcher = new Fetcher(bunqConnector, dataStore);
+
+        await fetcher.FetchData();
     })
 })

@@ -28,6 +28,7 @@ export class KeyManager implements IKeyManager {
         }
 
         if(this.KeysExist()){
+            log.info("Key pair already exists, no generation necessary");
             return;
         }
 
@@ -37,27 +38,25 @@ export class KeyManager implements IKeyManager {
         log.info("Trying to execute key creation script");
         const { code, stdout, stderr } = await command.output();
 
-        if(code !== -1){
+        if(code !== 0){
             log.error("Script execution unsucessfull");
             log.error(stderr.toString());
 
             throw new Error("Cannot execute create_key.sh script, please check file permisions");
         }
-
-        log.info(stdout.toString());
     }
 
     private KeysExist = () : boolean => {
-        let pubFound = true;
-        let privFound = true;
+        let pubFound = false;
+        let privFound = false;
 
         for (const dirEntry of Deno.readDirSync("/")) {
             if(dirEntry.name === "installation.key"){
-                privFound = false;
+                privFound = true;
             }
 
             if(dirEntry.name === "installation.pub"){
-                pubFound = false;
+                pubFound = true;
             }
         }
 

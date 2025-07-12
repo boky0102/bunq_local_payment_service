@@ -4,6 +4,7 @@ import {readTmpFile, saveToTmp} from './utility/utility.ts'
 import { Fetcher } from "./fetcher.ts";
 import { KeyManager } from "./key_manager.ts";
 import { log } from "./utility/logger.ts";
+import { BunqConnector } from "./bunq_connector.ts";
 
 // Main function to start the service.
 // TODO: Add config file and inject is as a JSON
@@ -13,7 +14,8 @@ export function StartApplication(app: Application, abortController: AbortControl
 
     const { signal } = abortController;
     const keyManager = new KeyManager();
-    const fetcher = new Fetcher(keyManager);
+    const bunqConnector = new BunqConnector(keyManager);
+    const fetcher = new Fetcher(bunqConnector);
     fetcher.FetchData();
     return app.listen({signal: signal});
 }

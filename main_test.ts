@@ -40,8 +40,7 @@ describe("Application", () => {
 describe("Bunq Connector", () => {
     beforeAll(async () => {
         const keyManager = new KeyManager();
-        const { privateKey, publicKey} = await keyManager.GetKeys();
-        const bunqConnector = new BunqConnector(publicKey, privateKey);
+        const bunqConnector = new BunqConnector(keyManager);
         await bunqConnector.EstablishConnection();
     })
 })

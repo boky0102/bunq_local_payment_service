@@ -2,9 +2,10 @@ import * as crypto from "node:crypto";
 import { Buffer } from "node:buffer";
 
 import { UserPerson } from "./bunq.types.d.ts";
-import { MonetaryAccountData, MonetaryAccountBank, BunqInstallResponse, SessionData } from "./bunq.types.d.ts";
+import { BunqInstallResponse, SessionData } from "./bunq.types.d.ts";
 import { log } from "./utility/logger.ts";
 import { Token } from "npm:path-to-regexp@^6.3.0";
+import { IKeyManager } from "./key_manager.ts";
 
 type EnvVriables = {
     BUNQ_API_KEY: string,
@@ -14,17 +15,28 @@ type EnvVriables = {
 }
 
 export class BunqConnector {
-    constructor(pubKey: string, privKey: string){
-        this.m_privateKey = privKey;
-        this.m_publicKey = pubKey;
+    constructor(keyManger: IKeyManager){
+        this.m_keyManger = keyManger;
         this.m_devicePosted = false;
         this.LoadEnvVariables();
     }
 
     public EstablishConnection = async () => {
+        if(this.ConnectionEstablished()){
+            return [this.m_sessionToken, this.m_userData];
+        }
+
+        const { privateKey, publicKey } = await this.m_keyManger.GetKeys();
+        this.m_privateKey = privateKey;
+        this.m_publicKey = publicKey;
+
         await this.CreateInstallation();
         await this.RegisterDevice();
-        await this.EstablishSession();
+        return await this.EstablishSession();
+    }
+
+    public ConnectionEstablished = () => {
+        return this.m_sessionToken && this.m_userData
     }
 
     /*
@@ -43,7 +55,7 @@ export class BunqConnector {
         }
 
         log.info("Installation data needs to be fetched. Trying to fetch the data");
-        this.m_installationData = await this.GetInstallationData(BUNQ_URL);
+        this.m_installationData = await this.PostInstallationData(BUNQ_URL);
 
         log.success("Successfully fetched installation data.");
     }
@@ -103,7 +115,7 @@ export class BunqConnector {
         }
     }
 
-    private GetInstallationData = async (bunqUrl: string) => {
+    private PostInstallationData = async (bunqUrl: string) => {
         const data = {
             client_public_key: this.m_publicKey,
         };
@@ -165,6 +177,10 @@ export class BunqConnector {
     }
 
     private SignRequestBody = (deviceBodyString: string) => {
+        if(!this.m_privateKey){
+            throw new Error("Private key not available");
+        }
+
         return crypto.sign("sha256", Buffer.from(deviceBodyString), {
                 key: this.m_privateKey
             })
@@ -210,8 +226,9 @@ export class BunqConnector {
         return [token.Token.token, userData.UserPerson]
     }
 
-    private m_publicKey: string;
-    private m_privateKey: string;
+    private m_keyManger: IKeyManager;
+    private m_publicKey: string | undefined;
+    private m_privateKey: string | undefined;
     private m_installationData: BunqInstallResponse | undefined;
     private m_devicePosted: boolean;
     private m_sessionToken: Token | undefined;

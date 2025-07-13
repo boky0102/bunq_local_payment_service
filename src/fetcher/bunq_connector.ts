@@ -3,10 +3,10 @@ import { Buffer } from "node:buffer";
 
 import { UserPerson } from "./bunq.types.d.ts";
 import { BunqInstallResponse, SessionData } from "./bunq.types.d.ts";
-import { log } from "./utility/logger.ts";
+import { log } from "../utility/logger.ts";
 import { Token } from "npm:path-to-regexp@^6.3.0";
 import { IKeyManager } from "./key_manager.ts";
-import { LoadEnvVariables  } from "./utility/utility.ts";
+import { LoadEnvVariables  } from "../utility/utility.ts";
 
 
 export class BunqConnector {

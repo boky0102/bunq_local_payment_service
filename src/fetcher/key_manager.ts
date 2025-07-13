@@ -1,4 +1,4 @@
-import { log } from "./utility/logger.ts";
+import { log } from "../utility/logger.ts";
 
 type KeyPair = {
     publicKey: string,

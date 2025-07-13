@@ -1,11 +1,11 @@
-import { log } from "./utility/logger.ts";
+import { log } from "../utility/logger.ts";
 import { BunqConnector } from "./bunq_connector.ts";
 import { UserPerson, MonetaryAccountBank, MonetaryAccountData, Payment, PaymentEntry} from "./bunq.types.d.ts";
-import { LoadEnvVariables } from "./utility/utility.ts";
-import { IDataStore } from "./datastore.ts";
+import { LoadEnvVariables } from "../utility/utility.ts";
+import { IDataStore } from "../datastore/datastore.ts";
 
 interface IFetcher {
-    FetchData: () => Promise<void>;
+    FetchData: () => Promise<[PaymentEntry]>;
 }
 
 /*
@@ -33,6 +33,7 @@ export class Fetcher implements IFetcher {
         log.info("Starting with payment fetching");
         await this.GetPayments(token.toString(), userData.id, MONETARY_ACCOUNT_NUMBER);
 
+        return await this.m_dataStore.GetAllEntries();
     }
 
     public GetMonetaryAccounts = async (token: string, user: UserPerson): Promise<MonetaryAccountBank[]> => {
@@ -61,10 +62,7 @@ export class Fetcher implements IFetcher {
         while (dataAvaliable) {
             const request = this.CreateRequest(url, token);
             const response = await fetch(request);
-
             const responseData = await response.json();
-            console.log(response.status);
-            console.log(responseData);
 
             for await (const payment of responseData.Response as [
                 { Payment: Payment },
@@ -91,14 +89,6 @@ export class Fetcher implements IFetcher {
                         balance_after: parseFloat(pym.balance_after_mutation.value),
                     };
 
-                    // const objectKeys = Object.keys(paymentEntry);
-
-                    // Object.keys(paymentEntry).forEach((key: string) => {
-                    //     if (paymentEntry[key as keyof typeof paymentEntry] === undefined) {
-                    //         paymentEntry[key as keyof typeof paymentEntry] = null;
-                    //     }
-                    // });
-
                     await this.m_dataStore.SaveEntry(paymentEntry);
 
                 } catch (error) {
@@ -119,7 +109,7 @@ export class Fetcher implements IFetcher {
             }
 
             if (iteration > 0 && iteration % 10 === 0) {
-                log.info("BATCHED 10 REQUESTS");
+                log.success("Recieved 10 requests from bunq server");
             }
         }
     }

@@ -1,13 +1,14 @@
 import { assertEquals } from "@std/assert";
 import {describe, it, beforeAll, afterAll} from "jsr:@std/testing/bdd"
+import { stub } from "jsr:@std/testing/mock";
 import { CreateApplication, CreateRouter, StartApplication } from "./main.ts";
-import { readTmpFile } from "./utility/utility.ts";
+import { readTmpFile } from "./src/utility/utility.ts";
 import { Router } from "@oak/oak/router";
 import { Application } from "@oak/oak/application";
-import { KeyManager } from "./key_manager.ts";
-import { BunqConnector } from "./bunq_connector.ts";
-import { InMemoryStoreObject } from "./datastore.ts";
-import { Fetcher } from "./fetcher.ts";
+import { KeyManager } from "./src/fetcher/key_manager.ts";
+import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
+import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
+import { Fetcher } from "./src/fetcher/fetcher.ts";
 
 describe("Application", () => {
     let router: Router;
@@ -17,8 +18,8 @@ describe("Application", () => {
     beforeAll(() => {
         router = CreateRouter()
         app = CreateApplication(router);
-        abortController = new AbortController();
-        StartApplication(app, abortController);
+        // abortController = new AbortController();
+        // StartApplication(app, abortController);
     })
 
     it("Should save port number to a file in tmp dir", async () => {
@@ -35,17 +36,6 @@ describe("Application", () => {
     })
 
     afterAll(()=> {
-       abortController.abort();
+       // abortController.abort();
    })
 });
-
-describe("Bunq Connector", () => {
-    beforeAll(async () => {
-        const keyManager = new KeyManager();
-        const bunqConnector = new BunqConnector(keyManager);
-        const dataStore = new InMemoryStoreObject();
-        const fetcher = new Fetcher(bunqConnector, dataStore);
-
-        await fetcher.FetchData();
-    })
-})

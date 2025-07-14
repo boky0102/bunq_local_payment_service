@@ -4,7 +4,10 @@ import { CreateApplication,  CreateFetcher } from "./main.ts";
 import { InMemoryStoreObject } from "./src/datastore/datastore.ts";
 import { router } from "./src/service/controller.ts";
 import { Fetcher } from "./src/fetcher/fetcher.ts";
+import { IKeyManager, KeyManager } from "./src/fetcher/key_manager.ts";
+import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { PaymentEntry } from "./src/fetcher/bunq.types.d.ts";
+import { mock } from "node:test";
 
 const samplePaymentEntries: PaymentEntry[] = [
     {
@@ -53,15 +56,45 @@ const samplePaymentEntries: PaymentEntry[] = [
     }
 ];
 
-describe("Application", () => {
-    beforeAll(() => {
-        const dataStore = new InMemoryStoreObject();
-        const fetcher : Fetcher = {
-            FetchData: async ()  => {
-                return samplePaymentEntries
-            }
+describe("Fetcher", () => {
+
+    let fetcher: Fetcher;
+    let dataStore: InMemoryStoreObject = new InMemoryStoreObject();
+
+    beforeAll(async () => {
+        const mockKeyManager: IKeyManager = {
+            GetKeys: () => Promise.resolve({privateKey: "privateKey", publicKey: "publicKey"})
         }
-        const app = CreateApplication(router);
+
+       const bunqConnectorBase = new BunqConnector(mockKeyManager);
+       const mockBunqConnector = {
+           ...bunqConnectorBase,
+           GetPayments: () => Promise.resolve(samplePaymentEntries),
+           GetMonetaryAccounts: () => Promise.resolve([{id: 123456}]),
+           EstablishConnection: () => Promise.resolve()
+       }
+
+        fetcher = new Fetcher(mockBunqConnector , dataStore);
+        await fetcher.FetchData();
+    });
+
+    it("should fetch data successfully", async () => {
+        let threw = false;
+        try {
+            await fetcher.FetchData();
+        } catch (_error) {
+            threw = true;
+        }
+
+        assertEquals(false, threw);
+    });
+
+    it("should save data to the data store", async () => {
+        await fetcher.FetchData();
+        const data = await dataStore.GetAllEntries();
+        data.forEach((entry, index) => {
+            assertEquals(samplePaymentEntries.includes(entry), true);
+        });
     });
 
 });

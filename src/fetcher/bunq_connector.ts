@@ -14,7 +14,14 @@ import { Payment, PaymentEntry, MonetaryAccountData, MonetaryAccountBank } from 
     It provides methods for creating installation, registering device, and establishing session.
     It also provides methods for fetching payment entries.
 */
-export class BunqConnector {
+
+export interface IBunqConnector {
+    EstablishConnection: () => Promise<void>;
+    ConnectionEstablished: () => boolean;
+    GetPayments: () => Promise<PaymentEntry[] | undefined>;
+};
+
+export class BunqConnector implements IBunqConnector {
     constructor(keyManger: IKeyManager){
         this.m_keyManger = keyManger;
         this.m_devicePosted = false;
@@ -40,8 +47,8 @@ export class BunqConnector {
         await this.EstablishSession();
     }
 
-    public ConnectionEstablished = () => {
-        return this.m_userData && this.m_sessionToken
+    public ConnectionEstablished = () : boolean => {
+        return this.m_userData !== undefined && this.m_sessionToken !== undefined;
     }
 
     /*
@@ -204,16 +211,21 @@ export class BunqConnector {
         this.m_userData = userData.UserPerson;
     }
 
-    public GetPayments =  async (token: string, userId: number, accountId: number) => {
-        const { BUNQ_URL } = LoadEnvVariables();
+    // TODO: Break from while loop when same transaction id is found
+    public GetPayments =  async () => {
+        if(!this.m_sessionToken || !this.m_userData){
+            throw new Error("Session token is not set cannot fetch payments");
+        }
+
+        const { BUNQ_URL, MONETARY_ACCOUNT_NUMBER } = LoadEnvVariables();
         let dataAvaliable = true;
         let iteration = 0;
         let url =
             BUNQ_URL +
-            `user/${userId}/monetary-account/${accountId}/payment?count=200`;
+            `user/${this.m_userData.id}/monetary-account/${MONETARY_ACCOUNT_NUMBER}/payment?count=200`;
 
         while (dataAvaliable) {
-            const request = this.CreateRequest(url, token);
+            const request = this.CreateRequest(url, this.m_sessionToken.toString());
             const response = await fetch(request);
             const responseData = await response.json();
 
@@ -269,6 +281,8 @@ export class BunqConnector {
                 log.success("Recieved 10 requests from bunq server");
             }
         }
+
+        return this.m_paymentData;
     }
 
     public GetMonetaryAccounts = async (token: string, user: UserPerson): Promise<MonetaryAccountBank[]> => {

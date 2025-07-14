@@ -7,8 +7,13 @@ import { log } from "../utility/logger.ts";
 import { Token } from "npm:path-to-regexp@^6.3.0";
 import { IKeyManager } from "./key_manager.ts";
 import { LoadEnvVariables  } from "../utility/utility.ts";
+import { Payment, PaymentEntry, MonetaryAccountData, MonetaryAccountBank } from "./bunq.types.d.ts";
 
-
+/*
+    This a class responsible for establishing connection with the bunq server.
+    It provides methods for creating installation, registering device, and establishing session.
+    It also provides methods for fetching payment entries.
+*/
 export class BunqConnector {
     constructor(keyManger: IKeyManager){
         this.m_keyManger = keyManger;
@@ -21,9 +26,9 @@ export class BunqConnector {
         Returning array consists of token and user data. In the case of failure it will
         throw
     */
-    public EstablishConnection = async () : Promise<[UserPerson | undefined, Token | undefined]> => {
+    public EstablishConnection = async () => {
         if(this.ConnectionEstablished()){
-            return [this.m_userData, this.m_sessionToken];
+            return;
         }
 
         const { privateKey, publicKey } = await this.m_keyManger.GetKeys();
@@ -32,7 +37,7 @@ export class BunqConnector {
 
         await this.CreateInstallation();
         await this.RegisterDevice();
-        return await this.EstablishSession();
+        await this.EstablishSession();
     }
 
     public ConnectionEstablished = () => {
@@ -84,7 +89,7 @@ export class BunqConnector {
             throw new Error("Cannot start a session without device information being posted");
         }
 
-        return await this.GetSessionToken();
+        await this.GetSessionToken();
     }
 
     private PostInstallationData = async (bunqUrl: string) => {
@@ -158,7 +163,7 @@ export class BunqConnector {
             })
     }
 
-    private GetSessionToken = async () :Promise<[UserPerson, Token]> => {
+    private GetSessionToken = async () => {
         if(this.m_sessionToken && this.m_userData){
             log.info("User data and session token already exist, no need to fetch");
             return [this.m_userData, this.m_sessionToken]
@@ -195,7 +200,99 @@ export class BunqConnector {
         const responseData = (await response.json()) as SessionData;
         const [_, token, userData] = responseData.Response;
 
-        return [userData.UserPerson, token.Token.token];
+        this.m_sessionToken = token.Token.token;
+        this.m_userData = userData.UserPerson;
+    }
+
+    public GetPayments =  async (token: string, userId: number, accountId: number) => {
+        const { BUNQ_URL } = LoadEnvVariables();
+        let dataAvaliable = true;
+        let iteration = 0;
+        let url =
+            BUNQ_URL +
+            `user/${userId}/monetary-account/${accountId}/payment?count=200`;
+
+        while (dataAvaliable) {
+            const request = this.CreateRequest(url, token);
+            const response = await fetch(request);
+            const responseData = await response.json();
+
+            for await (const payment of responseData.Response as [
+                { Payment: Payment },
+            ]) {
+                try {
+                    const pym = payment.Payment as Payment;
+                    const created = new Date(pym.created);
+                    const createdInt = Math.round(created.getTime() / 1000);
+                    const updatedInt = Math.round(created.getTime() / 1000);
+                    const paymentEntry: PaymentEntry = {
+                        id: pym.id,
+                        created: createdInt,
+                        updated: updatedInt,
+                        monetary_account_id: pym.monetary_account_id,
+                        amount: parseFloat(pym.amount.value),
+                        currency: pym.amount.currency,
+                        description: pym.description,
+                        type: pym.type,
+                        iban: pym.counterparty_alias.iban,
+                        name: pym.counterparty_alias.display_name,
+                        category_code:
+                            pym.counterparty_alias.merchant_category_code,
+                        subtype: pym.subtype,
+                        balance_after: parseFloat(pym.balance_after_mutation.value),
+                    };
+
+                    if(this.m_paymentData === undefined) {
+                        this.m_paymentData = [];
+                    }
+
+                    this.m_paymentData.push(paymentEntry);
+
+                } catch (error) {
+                    console.log(error);
+                }
+            }
+
+            iteration++;
+
+            const olderUrl = responseData.Pagination.older_url as string | null;
+
+            if (olderUrl === null) {
+                dataAvaliable = false;
+            }
+
+            if (olderUrl !== null) {
+                url = BUNQ_URL + olderUrl.substring(4, olderUrl.length);
+            }
+
+            if (iteration > 0 && iteration % 10 === 0) {
+                log.success("Recieved 10 requests from bunq server");
+            }
+        }
+    }
+
+    public GetMonetaryAccounts = async (token: string, user: UserPerson): Promise<MonetaryAccountBank[]> => {
+        const { BUNQ_URL } = LoadEnvVariables();
+        const url = BUNQ_URL + `/user/${user.id}/monetary-account`;
+        const request = this.CreateRequest(url, token);
+
+        const response = await fetch(request);
+
+        const repsonseObj = (await response.json()) as MonetaryAccountData;
+
+        const responseTransformed = repsonseObj.Response.map((bankAccount) => {
+            return bankAccount.MonetaryAccountBank;
+        });
+        return responseTransformed;
+    }
+
+    private CreateRequest(url: string ,token: string){
+        return new Request(url, {
+            method: "GET",
+            headers: {
+                "X-Bunq-Client-Authentication": token
+            }
+        })
     }
 
     private m_keyManger: IKeyManager;
@@ -205,4 +302,5 @@ export class BunqConnector {
     private m_devicePosted: boolean;
     private m_sessionToken: Token | undefined;
     private m_userData: UserPerson | undefined;
+    private m_paymentData: PaymentEntry[] | undefined;
 }

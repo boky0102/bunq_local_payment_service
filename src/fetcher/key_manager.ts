@@ -36,7 +36,7 @@ export class KeyManager implements IKeyManager {
         const command = new Deno.Command("./create_key.sh");
 
         log.info("Trying to execute key creation script");
-        const { code, stdout, stderr } = await command.output();
+        const { code, stderr } = await command.output();
 
         if(code !== 0){
             log.error("Script execution unsucessfull");

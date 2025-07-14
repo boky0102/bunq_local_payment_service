@@ -6,37 +6,20 @@ import { KeyManager } from "./src/fetcher/key_manager.ts";
 import { log } from "./src/utility/logger.ts";
 import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
+import { router } from "./src/service/controller.ts";
 
 // Main function to start the service.
 // TODO: Add config file and inject is as a JSON
 
 export const dataStore = new InMemoryStoreObject();
 
-export async function StartApplication(app: Application, abortController: AbortController){
+export async function StartApplication(app: Application, abortController: AbortController, fetcher: Fetcher){
     log.info("Trying to start the application");
 
-    const fetcher = CreateFetcher(dataStore);
     await fetcher.FetchData();
 
     const { signal } = abortController;
     return app.listen({signal: signal});
-}
-
-export function CreateRouter(): Router{
-    const router = new Router();
-
-    router.get("/", (ctx) => {
-      ctx.response.body = `<!DOCTYPE html>
-        <html>
-          <head><title>Hello oak!</title><head>
-          <body>
-            <h1>Hello oak!</h1>
-          </body>
-        </html>
-      `;
-    });
-
-    return router;
 }
 
 export function CreateApplication(router: Router) :Application {
@@ -53,14 +36,14 @@ export function CreateApplication(router: Router) :Application {
     return app;
 }
 
-function CreateFetcher(dataStore: IDataStore){
+export function CreateFetcher(dataStore: IDataStore){
     const keyManger = new KeyManager();
     const bunqConnector = new BunqConnector(keyManger);
 
     return new Fetcher(bunqConnector, dataStore);
 }
 
-const router = CreateRouter();
 const app = CreateApplication(router);
 const abortController = new AbortController();
-await StartApplication(app, abortController);
+const fetcher = CreateFetcher(dataStore);
+await StartApplication(app, abortController, fetcher);

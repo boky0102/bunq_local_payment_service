@@ -2,7 +2,7 @@ import { PaymentEntry } from "../fetcher/bunq.types.d.ts"
 
 export interface IDataStore {
     SaveEntry: (payment: PaymentEntry) => Promise<void>
-    GetAllEntries: () => Promise<[PaymentEntry]>
+    GetAllEntries: () => Promise<PaymentEntry[]>
     HasContent: () => Promise<boolean>
 }
 
@@ -31,5 +31,5 @@ export class InMemoryStoreObject implements IDataStore {
         return this.m_entries.length > 0;
     }
 
-    private m_entries: [PaymentEntry] | undefined;
+    private m_entries: PaymentEntry[] | undefined;
 }

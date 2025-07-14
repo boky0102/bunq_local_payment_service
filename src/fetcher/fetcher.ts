@@ -5,7 +5,7 @@ import { LoadEnvVariables } from "../utility/utility.ts";
 import { IDataStore } from "../datastore/datastore.ts";
 
 interface IFetcher {
-    FetchData: () => Promise<[PaymentEntry]>;
+    FetchData: () => Promise<PaymentEntry[]>;
 }
 
 /*

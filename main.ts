@@ -1,49 +1,25 @@
-import {Application} from "jsr:@oak/oak/application";
-import {Router} from 'jsr:@oak/oak/router';
-import {readTmpFile, saveToTmp} from './src/utility/utility.ts'
-import { Fetcher } from "./src/fetcher/fetcher.ts";
-import { KeyManager } from "./src/fetcher/key_manager.ts";
+import { CreateApplication, CreateFetcher, StartApplication } from "./server.ts";
+import { InMemoryStoreObject } from "./src/datastore/datastore.ts";
 import { log } from "./src/utility/logger.ts";
-import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
-import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
-import { router } from "./src/service/controller.ts";
+import { CreateRouter } from "./src/service/controller.ts";
 
 // Main function to start the service.
 // TODO: Add config file and inject is as a JSON
 
-export const dataStore = new InMemoryStoreObject();
 
-export async function StartApplication(app: Application, abortController: AbortController, fetcher: Fetcher){
-    log.info("Trying to start the application");
-
-    await fetcher.FetchData();
-
-    const { signal } = abortController;
-    return app.listen({signal: signal});
+async function main(){
+    try{
+        const dataStore = new InMemoryStoreObject();
+        const router = CreateRouter(dataStore);
+        const app = CreateApplication(router);
+        const abortController = new AbortController();
+        const fetcher = CreateFetcher(dataStore);
+        await StartApplication(app, abortController, fetcher);
+    }
+     catch(error){
+        log.error("Internal application crashed");
+        console.error(error);
+    }
 }
 
-export function CreateApplication(router: Router) :Application {
-    const app = new Application();
-    app.use(router.routes());
-    app.use(router.allowedMethods());
-
-    app.addEventListener("listen", async (state) => {
-        log.info(`Application started and running on port ${state.port}`);
-        await saveToTmp(state.port);
-        await readTmpFile("bunq-service-port.txt");
-    })
-
-    return app;
-}
-
-export function CreateFetcher(dataStore: IDataStore){
-    const keyManger = new KeyManager();
-    const bunqConnector = new BunqConnector(keyManger);
-
-    return new Fetcher(bunqConnector, dataStore);
-}
-
-const app = CreateApplication(router);
-const abortController = new AbortController();
-const fetcher = CreateFetcher(dataStore);
-await StartApplication(app, abortController, fetcher);
+await main();

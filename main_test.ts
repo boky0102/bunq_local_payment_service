@@ -1,13 +1,13 @@
 import { assertEquals } from "@std/assert";
 import {describe, it, beforeAll, afterAll} from "jsr:@std/testing/bdd"
-import { CreateApplication,  CreateFetcher } from "./main.ts";
-import { InMemoryStoreObject } from "./src/datastore/datastore.ts";
-import { router } from "./src/service/controller.ts";
+import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
 import { Fetcher } from "./src/fetcher/fetcher.ts";
-import { IKeyManager, KeyManager } from "./src/fetcher/key_manager.ts";
+import { IKeyManager } from "./src/fetcher/key_manager.ts";
 import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { PaymentEntry } from "./src/fetcher/bunq.types.d.ts";
-import { mock } from "node:test";
+import { Application } from "@oak/oak/application";
+import { superoak } from "https://deno.land/x/superoak/mod.ts";
+import { CreateRouter } from "./src/service/controller.ts";
 
 const samplePaymentEntries: PaymentEntry[] = [
     {
@@ -59,7 +59,7 @@ const samplePaymentEntries: PaymentEntry[] = [
 describe("Fetcher", () => {
 
     let fetcher: Fetcher;
-    let dataStore: InMemoryStoreObject = new InMemoryStoreObject();
+    const dataStore: InMemoryStoreObject = new InMemoryStoreObject();
 
     beforeAll(async () => {
         const mockKeyManager: IKeyManager = {
@@ -92,9 +92,55 @@ describe("Fetcher", () => {
     it("should save data to the data store", async () => {
         await fetcher.FetchData();
         const data = await dataStore.GetAllEntries();
-        data.forEach((entry, index) => {
+        data.forEach((entry) => {
             assertEquals(samplePaymentEntries.includes(entry), true);
         });
     });
 
+});
+
+describe("Service", () => {
+    let fetcher: Fetcher;
+    const mockDataStore: IDataStore = {
+        GetAllEntries: () => {
+            return Promise.resolve(samplePaymentEntries);
+        },
+        HasContent: () => {
+            return Promise.resolve(true)
+        },
+        SaveEntry: async (entry: PaymentEntry) => {
+            return;
+        }
+    }
+    const abortController = new AbortController();
+    const app = new Application();
+    const router = CreateRouter(mockDataStore);
+    app.use(router.routes());
+    app.use(router.allowedMethods());
+
+    beforeAll(async () => {
+        const mockKeyManager: IKeyManager = {
+            GetKeys: () => Promise.resolve({privateKey: "privateKey", publicKey: "publicKey"})
+        }
+
+       const bunqConnectorBase = new BunqConnector(mockKeyManager);
+       const mockBunqConnector = {
+           ...bunqConnectorBase,
+           GetPayments: () => Promise.resolve(samplePaymentEntries),
+           GetMonetaryAccounts: () => Promise.resolve([{id: 123456}]),
+           EstablishConnection: () => Promise.resolve()
+       }
+
+        fetcher = new Fetcher(mockBunqConnector, mockDataStore);
+        await fetcher.FetchData();
+    });
+
+    it("Should return all payment data on GET /all-data", async () => {
+        const request = await superoak(app);
+        await request.get("/all-data").expect(200);
+    });
+
+    afterAll(() => {
+        abortController.abort();
+    });
 });

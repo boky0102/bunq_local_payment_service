@@ -285,20 +285,20 @@ export class BunqConnector implements IBunqConnector {
         return this.m_paymentData;
     }
 
-    public GetMonetaryAccounts = async (token: string, user: UserPerson): Promise<MonetaryAccountBank[]> => {
-        const { BUNQ_URL } = LoadEnvVariables();
-        const url = BUNQ_URL + `/user/${user.id}/monetary-account`;
-        const request = this.CreateRequest(url, token);
+    // public GetMonetaryAccounts = async (token: string, user: UserPerson): Promise<MonetaryAccountBank[]> => {
+    //     const { BUNQ_URL } = LoadEnvVariables();
+    //     const url = BUNQ_URL + `/user/${user.id}/monetary-account`;
+    //     const request = this.CreateRequest(url, token);
 
-        const response = await fetch(request);
+    //     const response = await fetch(request);
 
-        const repsonseObj = (await response.json()) as MonetaryAccountData;
+    //     const repsonseObj = (await response.json()) as MonetaryAccountData;
 
-        const responseTransformed = repsonseObj.Response.map((bankAccount) => {
-            return bankAccount.MonetaryAccountBank;
-        });
-        return responseTransformed;
-    }
+    //     const responseTransformed = repsonseObj.Response.map((bankAccount) => {
+    //         return bankAccount.MonetaryAccountBank;
+    //     });
+    //     return responseTransformed;
+    // }
 
     private CreateRequest(url: string ,token: string){
         return new Request(url, {

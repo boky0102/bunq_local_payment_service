@@ -5,7 +5,7 @@ import { Fetcher } from "./src/fetcher/fetcher.ts";
 import { KeyManager } from "./src/fetcher/key_manager.ts";
 import { log } from "./src/utility/logger.ts";
 import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
-import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
+import { IDataStore } from "./src/datastore/datastore.ts";
 
 export async function StartApplication(app: Application, abortController: AbortController, fetcher: Fetcher){
     log.info("Trying to start the application");

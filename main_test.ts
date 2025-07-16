@@ -3,11 +3,12 @@ import {describe, it, beforeAll, afterAll} from "jsr:@std/testing/bdd"
 import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
 import { Fetcher } from "./src/fetcher/fetcher.ts";
 import { IKeyManager } from "./src/fetcher/key_manager.ts";
-import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
+import { BunqConnector, IBunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { PaymentEntry } from "./src/fetcher/bunq.types.d.ts";
 import { Application } from "@oak/oak/application";
 import { superoak } from "https://deno.land/x/superoak/mod.ts";
 import { CreateRouter } from "./src/service/controller.ts";
+import { Router } from "@oak/oak/router";
 
 const samplePaymentEntries: PaymentEntry[] = [
     {
@@ -99,6 +100,58 @@ describe("Fetcher", () => {
 
 });
 
+async function CreateMockApplicationContext(
+    dataStore: IDataStore | undefined = undefined,
+    bunqConnector: IBunqConnector | undefined = undefined,
+    keyManager: IKeyManager | undefined = undefined) : Promise<[Application, Fetcher]>{
+
+        let mockDataStore: IDataStore | undefined  = dataStore;
+        let mockKeyManager: IKeyManager | undefined = keyManager;
+        let mockBunqConnector: IBunqConnector | undefined = bunqConnector;
+
+        if(!mockDataStore){
+            mockDataStore = {
+                GetAllEntries: () => {
+                    return Promise.resolve(samplePaymentEntries);
+                },
+                HasContent: () => {
+                    return Promise.resolve(true)
+                },
+                SaveEntry: async (entry: PaymentEntry) => {
+                    return;
+                }
+            }
+        }
+
+        if(!mockKeyManager){
+            mockKeyManager ={
+                GetKeys: () => {
+                    return Promise.resolve({
+                        publicKey: "publicKey",
+                        privateKey: "privateKey"
+                    });
+                }
+            }
+        }
+
+        if(!mockBunqConnector){
+            mockBunqConnector = {
+                GetPayments: () => Promise.resolve(samplePaymentEntries),
+                EstablishConnection: () => Promise.resolve(),
+                ConnectionEstablished: () => true
+            }
+        }
+
+        const fetcher = new Fetcher(mockBunqConnector, mockDataStore);
+        const router = CreateRouter(mockDataStore);
+
+        const app = new Application();
+        app.use(router.routes());
+        app.use(router.allowedMethods());
+
+        return Promise.resolve([app, fetcher]);
+}
+
 describe("Service", () => {
     let fetcher: Fetcher;
     const mockDataStore: IDataStore = {
@@ -137,7 +190,12 @@ describe("Service", () => {
 
     it("Should return all payment data on GET /all-data", async () => {
         const request = await superoak(app);
-        await request.get("/all-data").expect(200);
+        await request.get("/all-data").expect(200, samplePaymentEntries);
+    });
+
+    it("Should return status 204 on GET /all-data when no data available", async () => {
+        const request = await superoak(app);
+        await request.get("/all-data").expect(204);
     });
 
     afterAll(() => {

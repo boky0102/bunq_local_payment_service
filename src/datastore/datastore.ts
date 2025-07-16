@@ -6,6 +6,12 @@ export interface IDataStore {
     HasContent: () => Promise<boolean>
 }
 
+export class NoDataInDataStoreError extends Error {
+    constructor(message: string) {
+        super(message);
+    }
+}
+
 export class InMemoryStoreObject implements IDataStore {
 
     SaveEntry = async (payment: PaymentEntry) => {
@@ -18,7 +24,7 @@ export class InMemoryStoreObject implements IDataStore {
 
     GetAllEntries = async () => {
         if(!this.m_entries){
-            throw new Error("There are no entries in the data store");
+            throw new NoDataInDataStoreError("are no entries in the data store");
         }
         return this.m_entries;
     }

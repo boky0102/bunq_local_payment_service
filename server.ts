@@ -6,6 +6,7 @@ import { KeyManager } from "./src/fetcher/key_manager.ts";
 import { log } from "./src/utility/logger.ts";
 import { BunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { IDataStore } from "./src/datastore/datastore.ts";
+import { errorHandler } from "./src/service/error_handler.ts";
 
 export async function StartApplication(app: Application, abortController: AbortController, fetcher: Fetcher){
     log.info("Trying to start the application");
@@ -18,6 +19,8 @@ export async function StartApplication(app: Application, abortController: AbortC
 
 export function CreateApplication(router: Router) :Application {
     const app = new Application();
+
+    app.use(errorHandler);
     app.use(router.routes());
     app.use(router.allowedMethods());
 
@@ -26,6 +29,7 @@ export function CreateApplication(router: Router) :Application {
         await saveToTmp(state.port);
         await readTmpFile("bunq-service-port.txt");
     })
+
 
     return app;
 }

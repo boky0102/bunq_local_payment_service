@@ -79,7 +79,7 @@ export class log {
             return prev + " " + curr;
         }, "--DEBUG-- " + message);
 
-        console.info("\x1b[37m%s\x1b[0m", logString);
+        console.info("\x1b[35m%s\x1b[0m", logString);
 
     }
 

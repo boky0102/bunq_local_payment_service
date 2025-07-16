@@ -1,14 +1,15 @@
 import { assertEquals } from "@std/assert";
-import {describe, it, beforeAll, afterAll} from "jsr:@std/testing/bdd"
-import { IDataStore, InMemoryStoreObject } from "./src/datastore/datastore.ts";
+import {describe, it } from "jsr:@std/testing/bdd"
+import { IDataStore, NoDataInDataStoreError } from "./src/datastore/datastore.ts";
 import { Fetcher } from "./src/fetcher/fetcher.ts";
 import { IKeyManager } from "./src/fetcher/key_manager.ts";
-import { BunqConnector, IBunqConnector } from "./src/fetcher/bunq_connector.ts";
+import { IBunqConnector } from "./src/fetcher/bunq_connector.ts";
 import { PaymentEntry } from "./src/fetcher/bunq.types.d.ts";
 import { Application } from "@oak/oak/application";
 import { superoak } from "https://deno.land/x/superoak/mod.ts";
 import { CreateRouter } from "./src/service/controller.ts";
-import { Router } from "@oak/oak/router";
+import { HttpError } from "jsr:@oak/commons@1/http_errors";
+import { STATUS_CODE } from "jsr:@std/http@1";
 
 const samplePaymentEntries: PaymentEntry[] = [
     {
@@ -57,29 +58,63 @@ const samplePaymentEntries: PaymentEntry[] = [
     }
 ];
 
-describe("Fetcher", () => {
+type MockInterfacesContext = {
+    mockDataStore?: IDataStore;
+    mockKeyManager?: IKeyManager;
+    mockBunqConnector?: IBunqConnector;
+}
 
-    let fetcher: Fetcher;
-    const dataStore: InMemoryStoreObject = new InMemoryStoreObject();
-
-    beforeAll(async () => {
-        const mockKeyManager: IKeyManager = {
-            GetKeys: () => Promise.resolve({privateKey: "privateKey", publicKey: "publicKey"})
+/**
+ * Convenience method for creating a mock application context with optional mock interfaces.
+ * If no interfaces are provided, default mock implementations are used.
+ */
+async function CreateMockApplicationContext({ mockDataStore = undefined, mockKeyManager = undefined, mockBunqConnector = undefined} : MockInterfacesContext = {} as MockInterfacesContext) :Promise<[Application, Fetcher, IDataStore]>{
+    if(mockDataStore === undefined){
+        mockDataStore = {
+            GetAllEntries: () => {
+                return Promise.resolve(samplePaymentEntries);
+            },
+            HasContent: () => {
+                return Promise.resolve(true)
+            },
+            SaveEntry: async (entry: PaymentEntry) => {
+                return;
+            }
         }
+    }
 
-       const bunqConnectorBase = new BunqConnector(mockKeyManager);
-       const mockBunqConnector = {
-           ...bunqConnectorBase,
-           GetPayments: () => Promise.resolve(samplePaymentEntries),
-           GetMonetaryAccounts: () => Promise.resolve([{id: 123456}]),
-           EstablishConnection: () => Promise.resolve()
-       }
+    if(mockKeyManager === undefined){
+        mockKeyManager ={
+            GetKeys: () => {
+                return Promise.resolve({
+                    publicKey: "publicKey",
+                    privateKey: "privateKey"
+                });
+            }
+        }
+    }
 
-        fetcher = new Fetcher(mockBunqConnector , dataStore);
-        await fetcher.FetchData();
-    });
+    if(mockBunqConnector === undefined){
+        mockBunqConnector = {
+            GetPayments: () => Promise.resolve(samplePaymentEntries),
+            EstablishConnection: () => Promise.resolve(),
+            ConnectionEstablished: () => true
+        }
+    }
 
+    const fetcher = new Fetcher(mockBunqConnector, mockDataStore);
+    const router = CreateRouter(mockDataStore);
+
+    const app = new Application();
+    app.use(router.routes());
+    app.use(router.allowedMethods());
+
+    return Promise.resolve([app, fetcher, mockDataStore]);
+}
+
+describe("Fetcher", () => {
     it("should fetch data successfully", async () => {
+        const [_app, fetcher] = await CreateMockApplicationContext();
         let threw = false;
         try {
             await fetcher.FetchData();
@@ -91,114 +126,82 @@ describe("Fetcher", () => {
     });
 
     it("should save data to the data store", async () => {
+        const [_app, fetcher, dataStore] = await CreateMockApplicationContext();
         await fetcher.FetchData();
         const data = await dataStore.GetAllEntries();
         data.forEach((entry) => {
             assertEquals(samplePaymentEntries.includes(entry), true);
         });
     });
-
 });
 
-async function CreateMockApplicationContext(
-    dataStore: IDataStore | undefined = undefined,
-    bunqConnector: IBunqConnector | undefined = undefined,
-    keyManager: IKeyManager | undefined = undefined) : Promise<[Application, Fetcher]>{
-
-        let mockDataStore: IDataStore | undefined  = dataStore;
-        let mockKeyManager: IKeyManager | undefined = keyManager;
-        let mockBunqConnector: IBunqConnector | undefined = bunqConnector;
-
-        if(!mockDataStore){
-            mockDataStore = {
-                GetAllEntries: () => {
-                    return Promise.resolve(samplePaymentEntries);
-                },
-                HasContent: () => {
-                    return Promise.resolve(true)
-                },
-                SaveEntry: async (entry: PaymentEntry) => {
-                    return;
-                }
-            }
-        }
-
-        if(!mockKeyManager){
-            mockKeyManager ={
-                GetKeys: () => {
-                    return Promise.resolve({
-                        publicKey: "publicKey",
-                        privateKey: "privateKey"
-                    });
-                }
-            }
-        }
-
-        if(!mockBunqConnector){
-            mockBunqConnector = {
-                GetPayments: () => Promise.resolve(samplePaymentEntries),
-                EstablishConnection: () => Promise.resolve(),
-                ConnectionEstablished: () => true
-            }
-        }
-
-        const fetcher = new Fetcher(mockBunqConnector, mockDataStore);
-        const router = CreateRouter(mockDataStore);
-
-        const app = new Application();
-        app.use(router.routes());
-        app.use(router.allowedMethods());
-
-        return Promise.resolve([app, fetcher]);
-}
-
-describe("Service", () => {
-    let fetcher: Fetcher;
-    const mockDataStore: IDataStore = {
-        GetAllEntries: () => {
-            return Promise.resolve(samplePaymentEntries);
-        },
-        HasContent: () => {
-            return Promise.resolve(true)
-        },
-        SaveEntry: async (entry: PaymentEntry) => {
-            return;
-        }
-    }
-    const abortController = new AbortController();
-    const app = new Application();
-    const router = CreateRouter(mockDataStore);
-    app.use(router.routes());
-    app.use(router.allowedMethods());
-
-    beforeAll(async () => {
-        const mockKeyManager: IKeyManager = {
-            GetKeys: () => Promise.resolve({privateKey: "privateKey", publicKey: "publicKey"})
-        }
-
-       const bunqConnectorBase = new BunqConnector(mockKeyManager);
-       const mockBunqConnector = {
-           ...bunqConnectorBase,
-           GetPayments: () => Promise.resolve(samplePaymentEntries),
-           GetMonetaryAccounts: () => Promise.resolve([{id: 123456}]),
-           EstablishConnection: () => Promise.resolve()
-       }
-
-        fetcher = new Fetcher(mockBunqConnector, mockDataStore);
+describe("Service GET /all-data", () => {
+    it("Should return all payment data", async () => {
+        const [app, fetcher] = await CreateMockApplicationContext();
         await fetcher.FetchData();
-    });
-
-    it("Should return all payment data on GET /all-data", async () => {
         const request = await superoak(app);
         await request.get("/all-data").expect(200, samplePaymentEntries);
     });
 
-    it("Should return status 204 on GET /all-data when no data available", async () => {
+    it("Should return all payments when fetcher returns nothing but store has data", async () => {
+        const mockBunqConnector : IBunqConnector = {
+            EstablishConnection: () => Promise.resolve(),
+            ConnectionEstablished: () => true,
+            GetPayments: () => Promise.resolve([])
+        };
+
+        const [app, fetcher] = await CreateMockApplicationContext({mockBunqConnector: mockBunqConnector});
+
+        await fetcher.FetchData();
         const request = await superoak(app);
-        await request.get("/all-data").expect(204);
+        await request.get("/all-data").expect(200);
     });
 
-    afterAll(() => {
-        abortController.abort();
-    });
+    it("Should return no payment data if data store is empty with status code 204", async () => {
+        const mockBunqConnector : IBunqConnector = {
+            EstablishConnection: () => Promise.resolve(),
+            ConnectionEstablished: () => true,
+            GetPayments: () => Promise.resolve(samplePaymentEntries)
+        };
+
+        const mockDataStore : IDataStore = {
+            GetAllEntries: () => Promise.reject(new NoDataInDataStoreError("error")),
+            SaveEntry: () => Promise.resolve(),
+            HasContent: () => Promise.resolve(false)
+        };
+
+        const [app, fetcher] = await CreateMockApplicationContext({mockBunqConnector: mockBunqConnector, mockDataStore: mockDataStore});
+        await fetcher.FetchData();
+
+        const request = await superoak(app);
+        await request.get("/all-data").expect(204);
+    })
+
+    it("Should return status 500 in the case of internal error", async () => {
+        const mockDataStore : IDataStore = {
+        GetAllEntries: () => Promise.reject(new Error("error")),
+        SaveEntry: () => Promise.resolve(),
+        HasContent: () => Promise.resolve(false)
+        };
+
+        const [app, fetcher] = await CreateMockApplicationContext({mockDataStore: mockDataStore});
+        await fetcher.FetchData();
+
+        const request = await superoak(app);
+        await request.get("/all-data").expect(500);
+    })
+
+    it("Should return same response in the case of http error", async () => {
+        const mockDataStore : IDataStore = {
+            GetAllEntries: () => Promise.reject(new Deno.errors.NotFound("error")),
+            SaveEntry: () => Promise.resolve(),
+            HasContent: () => Promise.resolve(true)
+        };
+
+        const [app, fetcher] = await CreateMockApplicationContext({mockDataStore: mockDataStore});
+        await fetcher.FetchData();
+
+        const request = await superoak(app);
+        await request.get("/all-data").expect(404);
+    })
 });
